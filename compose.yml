@@ -1,0 +1,126 @@
+---
+version: "2.1"
+services:
+  swag:
+    image: lscr.io/linuxserver/swag
+    container_name: swag
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Denver
+      - URL=domain1.com
+      - SUBDOMAINS=site1,phpmyadmin
+      - EXTRA_DOMAINS=site2.domain2.net, phpmyadmin.domain2.net
+      - VALIDATION=http
+      - CERTPROVIDER=
+      - EMAIL=info@domain1.com
+      - ONLY_SUBDOMAINS=true
+      - STAGING=false # set this to true when testing
+    volumes:
+      - ./data/swag:/config
+      - ./config/swag/default.conf:/config/nginx/site-confs/default.conf
+      - ./config/swag/site1.domain1.com.wordpress.subdomain.conf:/config/nginx/proxy-confs/site1.domain1.com.wordpress.subdomain.conf
+      - ./config/swag/phpmyadmin.domain1.com.phpmyadmin.subdomain.conf:/config/nginx/proxy-confs/phpmyadmin.domain1.com.phpmyadmin.subdomain.conf
+      - ./config/swag/site2.domain2.net.wordpress.subdomain.conf:/config/nginx/proxy-confs/site2.domain2.net.wordpress.subdomain.conf
+      - ./config/swag/phpmyadmin.domain2.net.phpmyadmin.subdomain.conf:/config/nginx/proxy-confs/phpmyadmin.domain2.net.phpmyadmin.subdomain.conf
+    restart: unless-stopped
+    ports:
+      - 443:443
+      - 80:80
+  database-site1:
+    image: mysql
+    container_name: database-site1
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Denver
+      - MYSQL_ROOT_PASSWORD=${SITE1_DATABASE_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${SITE1_WORDPRESS_DATABASE_NAME}
+      - MYSQL_USER=${SITE1_WORDPRESS_DATABASE_USER}
+      - MYSQL_PASSWORD=${SITE1_WORDPRESS_DATABASE_PASSWORD}
+    volumes:
+      - database-site1-data:/var/lib/mysql
+    restart: unless-stopped    
+  database-site2:
+    image: mysql
+    container_name: database-site2
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Denver
+      - MYSQL_ROOT_PASSWORD=${SITE2_DATABASE_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${SITE2_WORDPRESS_DATABASE_NAME}
+      - MYSQL_USER=${SITE2_WORDPRESS_DATABASE_USER}
+      - MYSQL_PASSWORD=${SITE2_WORDPRESS_DATABASE_PASSWORD}
+    volumes:
+      - database-site2-data:/var/lib/mysql
+    restart: unless-stopped    
+  wordpress-site1:
+    image: wordpress:latest
+    container_name: wordpress-site1
+    depends_on:
+      - database-site1
+    volumes:
+      - wordpress-site1-data:/var/www/html
+      - ./config/wordpress-site1/php.ini:/usr/local/etc/php/conf.d/php.ini
+    ports:
+      - 33080:80
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - WORDPRESS_DB_HOST=${SITE1_DATABASE_HOST}
+      - WORDPRESS_DB_NAME=${SITE1_WORDPRESS_DATABASE_NAME}
+      - WORDPRESS_DB_USER=${SITE1_WORDPRESS_DATABASE_USER}
+      - WORDPRESS_DB_PASSWORD=${SITE1_WORDPRESS_DATABASE_PASSWORD}
+      - WORDPRESS_CONFIG_EXTRA=
+        define( 'WP_MEMORY_LIMIT', '333M' );
+    restart: always
+  wordpress-site2:
+    image: wordpress:latest
+    container_name: wordpress-site2
+    depends_on:
+      - database-site2
+    volumes:
+      - wordpress-site2-data:/var/www/html
+      - ./config/wordpress-site2/php.ini:/usr/local/etc/php/conf.d/php.ini
+    ports:
+      - 33081:80
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - WORDPRESS_DB_HOST=${SITE2_DATABASE_HOST}
+      - WORDPRESS_DB_NAME=${SITE2_WORDPRESS_DATABASE_NAME}
+      - WORDPRESS_DB_USER=${SITE2_WORDPRESS_DATABASE_USER}
+      - WORDPRESS_DB_PASSWORD=${SITE2_WORDPRESS_DATABASE_PASSWORD}
+      - WORDPRESS_CONFIG_EXTRA=
+        define( 'WP_MEMORY_LIMIT', '333M' );
+    restart: always
+  phpmyadmin-site1:
+    image: phpmyadmin:latest
+    container_name: phpmyadmin-site1
+    depends_on:
+      - database-site1
+    ports:
+      - 8080:80
+    environment:
+      PMA_HOST: database-site1
+      PMA_PASSWORD: "${SITE1_DATABASE_ROOT_PASSWORD}"
+    restart: unless-stopped
+  phpmyadmin-site2:
+    image: phpmyadmin:latest
+    container_name: phpmyadmin-site2
+    depends_on:
+      - database-site2
+    ports:
+      - 8081:80
+    environment:
+      PMA_HOST: database-site2
+      PMA_PASSWORD: "${SITE2_DATABASE_ROOT_PASSWORD}"
+    restart: unless-stopped
+volumes:
+  database-site1-data:
+  database-site2-data:
+  wordpress-site1-data:
+  wordpress-site2-data:
